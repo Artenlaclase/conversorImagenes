@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { saveAs } from 'file-saver';
+import heic2any from 'heic2any';
 import type { FileWithPath } from 'react-dropzone';
 
 export default function ImageConverter() {
@@ -16,8 +17,27 @@ export default function ImageConverter() {
   // Referencia al canvas oculto para procesar la imagen
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const onDrop = (acceptedFiles: FileWithPath[]) => {
-    const file = acceptedFiles[0];
+  const onDrop = async (acceptedFiles: FileWithPath[]) => {
+    let file = acceptedFiles[0];
+    
+    // Detectar si es HEIC
+    if (file.name.toLowerCase().endsWith('.heic')) {
+      try {
+        setIsProcessing(true); // Mostrar carga
+        // Convertir HEIC a Blob (generalmente JPEG o PNG) legible por navegador
+        const convertedBlob = await heic2any({
+          blob: file,
+          toType: "image/jpeg",
+        });
+        file = new File([convertedBlob as Blob], file.name.replace('.heic', '.jpg'), { type: "image/jpeg" });
+        setIsProcessing(false);
+      } catch (e) {
+        console.error("Error convirtiendo HEIC", e);
+        setIsProcessing(false);
+        return;
+      }
+    }
+
     if (file) {
       setSelectedFile(file);
       const objectUrl = URL.createObjectURL(file);
