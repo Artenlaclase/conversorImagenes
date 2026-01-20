@@ -14,6 +14,7 @@ export default function ImageConverter() {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [showModal, setShowModal] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isHeicFile, setIsHeicFile] = useState<boolean>(false);
   
   // Referencia al canvas oculto para procesar la imagen
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -26,96 +27,47 @@ export default function ImageConverter() {
     setHeight(0);
     setShowModal(false);
     setError(null);
+    setIsHeicFile(false);
   };
 
   const onDrop = async (acceptedFiles: FileWithPath[]) => {
-    let file = acceptedFiles[0];
+    const file = acceptedFiles[0];
     setError(null);
     
-    // Detectar si es HEIC
-    if (file.name.toLowerCase().endsWith('.heic')) {
-      try {
-        setIsProcessing(true);
-        
-        // Importar dinámicamente heic2any solo cuando sea necesario
-        const heic2anyModule = await import('heic2any');
-        const heic2any = heic2anyModule.default;
-        
-        if (!heic2any) {
-          throw new Error("La librería de conversión HEIC no está disponible en tu navegador");
-        }
-        
-        // Convertir HEIC a PNG para mantener calidad durante la previsualización
-        // El usuario elegirá el formato final después
-        const conversionResult = await heic2any({
-          blob: file,
-          toType: "image/png"
-        });
-        
-        // Asegurar que obtenemos un blob
-        let convertedBlob: Blob | null = null;
-        
-        if (conversionResult instanceof Blob) {
-          convertedBlob = conversionResult;
-        } else if (Array.isArray(conversionResult) && conversionResult.length > 0 && conversionResult[0] instanceof Blob) {
-          convertedBlob = conversionResult[0];
-        }
-        
-        if (!convertedBlob) {
-          throw new Error("La conversión HEIC no produjo un resultado válido. Verifica que el archivo sea un HEIC válido");
-        }
-        
-        // Crear nuevo archivo con PNG temporalmente para previsualización
-        // El formato final se elegirá al descargar
-        file = new File([convertedBlob], file.name.replace(/\.heic$/i, '.png'), { 
-          type: "image/png",
-          lastModified: Date.now()
-        });
-        
-        setIsProcessing(false);
-      } catch (e: any) {
-        let errorMessage = "Error desconocido al convertir HEIC";
-        
-        if (e instanceof Error) {
-          errorMessage = e.message;
-        } else if (typeof e === 'string') {
-          errorMessage = e;
-        } else if (e && typeof e === 'object' && e.message) {
-          errorMessage = e.message;
-        }
-        
-        // Diferenciación de errores más útil
-        let userMessage = "No se pudo convertir el archivo HEIC. ";
-        
-        if (errorMessage.includes("browser") || errorMessage.includes("supported") || errorMessage.includes("disponible")) {
-          userMessage += "Tu navegador no soporta conversión de HEIC. Intenta con Chrome, Firefox o Safari reciente.";
-        } else if (errorMessage.includes("valid") || errorMessage.includes("válido")) {
-          userMessage += "El archivo HEIC podría estar corrupto. Intenta con otro archivo.";
-        } else if (errorMessage.includes("User cancelled")) {
-          userMessage = "Conversión cancelada por el usuario.";
-        } else {
-          userMessage += "Intenta con otro formato (JPG, PNG, WebP).";
-        }
-        
-        console.warn("Problema con conversión HEIC:", errorMessage);
-        setError(userMessage);
-        setIsProcessing(false);
-        return;
-      }
-    }
-
+    // Detectar si es HEIC basándose en la extensión Y el tipo MIME
+    const hasHeicExtension = file.name.toLowerCase().endsWith('.heic');
+    const isActuallyHeic = hasHeicExtension && !file.type.startsWith('image/');
+    
+    setIsHeicFile(isActuallyHeic);
+    
     if (file) {
       setSelectedFile(file);
-      const objectUrl = URL.createObjectURL(file);
-      setPreview(objectUrl);
+      
+      // Para archivos HEIC reales (sin tipo MIME legible)
+      if (isActuallyHeic) {
+        // Crear una preview genérica o mensaje
+        setPreview(null); // No podemos mostrar preview de HEIC directamente
+        setWidth(0);
+        setHeight(0);
+      } else {
+        // Para otros formatos o HEIC renombrados (ya convertidos), crear preview normalmente
+        const objectUrl = URL.createObjectURL(file);
+        setPreview(objectUrl);
 
-      // Obtener dimensiones originales
-      const img = new Image();
-      img.onload = () => {
-        setWidth(img.width);
-        setHeight(img.height);
-      };
-      img.src = objectUrl;
+        // Obtener dimensiones originales
+        const img = new Image();
+        img.onload = () => {
+          setWidth(img.width);
+          setHeight(img.height);
+        };
+        img.onerror = () => {
+          // Si falla al cargar la imagen, probablemente sí es HEIC real
+          setIsHeicFile(true);
+          setPreview(null);
+          setError("Archivo HEIC detectado. Elige el formato de salida y presiona 'Convertir y Descargar'.");
+        };
+        img.src = objectUrl;
+      }
     }
   };
 
@@ -128,42 +80,171 @@ export default function ImageConverter() {
 
   const handleConvert = async () => {
     setIsProcessing(true);
-    const img = new Image();
-    img.src = preview || '';
+    setError(null);
     
-    img.onload = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) {
-        setIsProcessing(false);
-        return;
-      }
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        setIsProcessing(false);
-        return;
-      }
-
-      // Configurar dimensiones del canvas
-      canvas.width = width;
-      canvas.height = height;
-
-      // Dibujar imagen redimensionada
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      // Convertir al formato deseado
-      canvas.toBlob((blob: Blob | null) => {
-        if (blob) {
-          // Generar nombre de archivo
-          const extension = format.split('/')[1];
-          saveAs(blob, `imagen-convertida.${extension}`);
-          // Esperar a que se complete la descarga antes de mostrar el modal
-          setTimeout(() => {
-            setShowModal(true);
-          }, 1000);
+    try {
+      let imageToProcess = preview;
+      
+      // Si es un archivo HEIC, convertirlo primero
+      if (isHeicFile && selectedFile) {
+        try {
+          // Verificar soporte del navegador
+          if (typeof window === 'undefined') {
+            throw new Error("No se puede ejecutar en el servidor");
+          }
+          
+          // Importar dinámicamente heic2any solo cuando sea necesario
+          const heic2anyModule = await import('heic2any');
+          const heic2any = heic2anyModule.default || heic2anyModule;
+          
+          if (!heic2any || typeof heic2any !== 'function') {
+            throw new Error("LIBRARY_NOT_AVAILABLE");
+          }
+          
+          console.log('Iniciando conversión HEIC...', {
+            fileName: selectedFile.name,
+            fileSize: selectedFile.size,
+            fileType: selectedFile.type,
+            targetFormat: format
+          });
+          
+          // Convertir HEIC al formato elegido por el usuario
+          const conversionResult = await heic2any({
+            blob: selectedFile,
+            toType: format,
+            quality: 0.9
+          });
+          
+          console.log('Conversión completada:', conversionResult);
+          
+          // Asegurar que obtenemos un blob
+          let convertedBlob: Blob | null = null;
+          
+          if (conversionResult instanceof Blob) {
+            convertedBlob = conversionResult;
+          } else if (Array.isArray(conversionResult) && conversionResult.length > 0 && conversionResult[0] instanceof Blob) {
+            convertedBlob = conversionResult[0];
+          }
+          
+          if (!convertedBlob) {
+            throw new Error("INVALID_RESULT");
+          }
+          
+          // Crear URL temporal para la imagen convertida
+          imageToProcess = URL.createObjectURL(convertedBlob);
+          console.log('Preview URL creada exitosamente');
+          
+        } catch (e: any) {
+          console.error('Error detallado en conversión HEIC:', e);
+          
+          let errorMessage = "Error desconocido";
+          let errorCode = null;
+          
+          if (e instanceof Error) {
+            errorMessage = e.message;
+          } else if (typeof e === 'string') {
+            errorMessage = e;
+          } else if (e && typeof e === 'object') {
+            errorMessage = e.message || "Error desconocido";
+            errorCode = e.code;
+          }
+          
+          // Verificar si el error es porque la imagen ya es legible
+          if (errorCode === 1 || errorMessage.includes("already browser readable") || errorMessage.includes("ERR_USER")) {
+            // El archivo tiene extensión .heic pero ya es un formato estándar (JPG/PNG)
+            // Usar el archivo directamente sin conversión HEIC
+            console.log('El archivo tiene extensión .heic pero ya está en formato legible. Procesando directamente...');
+            setIsHeicFile(false); // Marcar como no-HEIC para procesarlo normalmente
+            imageToProcess = preview; // Usar la preview existente
+            
+            // Si no hay preview, crearla ahora
+            if (!imageToProcess) {
+              imageToProcess = URL.createObjectURL(selectedFile);
+            }
+          } else {
+            // Error real de conversión
+            let userMessage = "";
+            
+            if (errorMessage === "LIBRARY_NOT_AVAILABLE" || errorMessage.includes("not a function")) {
+              userMessage = "⚠️ La conversión de HEIC no está disponible. Por favor, usa Chrome, Edge o Firefox actualizado.";
+            } else if (errorMessage === "INVALID_RESULT" || errorMessage.includes("valid") || errorMessage.includes("válido")) {
+              userMessage = "❌ El archivo HEIC podría estar corrupto. Intenta con otro archivo.";
+            } else if (errorMessage.includes("User cancelled") || errorMessage.includes("canceled")) {
+              userMessage = "ℹ️ Conversión cancelada.";
+            } else if (errorMessage.includes("not support") || errorMessage.includes("browser")) {
+              userMessage = "⚠️ Tu navegador no soporta archivos HEIC. Usa Chrome 116+, Edge 116+, o Firefox 130+.";
+            } else {
+              userMessage = `❌ Error al convertir HEIC: ${errorMessage}. Intenta convertir el archivo manualmente primero.`;
+            }
+            
+            setError(userMessage);
+            setIsProcessing(false);
+            return;
+          }
         }
+      }
+      
+      if (!imageToProcess) {
+        setError("No hay imagen para procesar");
         setIsProcessing(false);
-      }, format, 0.9); // 0.9 es la calidad (90%)
-    };
+        return;
+      }
+      
+      const img = new Image();
+      img.src = imageToProcess;
+      
+      img.onload = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) {
+          setIsProcessing(false);
+          return;
+        }
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setIsProcessing(false);
+          return;
+        }
+
+        // Configurar dimensiones del canvas (usar las originales si no se especificaron)
+        const finalWidth = width > 0 ? width : img.width;
+        const finalHeight = height > 0 ? height : img.height;
+        
+        canvas.width = finalWidth;
+        canvas.height = finalHeight;
+
+        // Dibujar imagen redimensionada
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Convertir al formato deseado
+        canvas.toBlob((blob: Blob | null) => {
+          if (blob) {
+            // Generar nombre de archivo
+            const extension = format.split('/')[1];
+            const baseName = selectedFile?.name.replace(/\.[^.]+$/, '') || 'imagen-convertida';
+            saveAs(blob, `${baseName}.${extension}`);
+            // Esperar a que se complete la descarga antes de mostrar el modal
+            setTimeout(() => {
+              setShowModal(true);
+            }, 1000);
+          }
+          setIsProcessing(false);
+          
+          // Limpiar URL temporal si se creó para HEIC
+          if (isHeicFile && imageToProcess !== preview) {
+            URL.revokeObjectURL(imageToProcess);
+          }
+        }, format, 0.9); // 0.9 es la calidad (90%)
+      };
+      
+      img.onerror = () => {
+        setError("Error al cargar la imagen para conversión");
+        setIsProcessing(false);
+      };
+      
+    } catch (error) {
+      setError("Error inesperado durante la conversión");
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -195,7 +276,12 @@ export default function ImageConverter() {
       >
         <input {...getInputProps()} />
         {selectedFile ? (
-          <p className="text-green-600 font-medium">✓ Archivo cargado: {selectedFile.name}</p>
+          <div>
+            <p className="text-green-600 font-medium">✓ Archivo cargado: {selectedFile.name}</p>
+            {isHeicFile && (
+              <p className="text-sm text-blue-600 mt-2">📱 Archivo HEIC detectado. Selecciona el formato de salida y presiona convertir.</p>
+            )}
+          </div>
         ) : (
           <>
             <p className="text-gray-700 font-medium">Arrastra una imagen aquí o haz clic para seleccionar</p>
@@ -204,12 +290,37 @@ export default function ImageConverter() {
         )}
       </div>
 
-      {preview && (
+      {selectedFile && (
         <div className="mt-6 space-y-4">
-          {/* Previsualización */}
-          <div className="flex justify-center bg-gray-100 p-4 rounded">
-            <img src={preview} alt="Preview" className="max-h-64 object-contain" />
-          </div>
+          {/* Previsualización - solo para archivos no-HEIC */}
+          {preview && !isHeicFile && (
+            <div className="flex justify-center bg-gray-100 p-4 rounded">
+              <img src={preview} alt="Preview" className="max-h-64 object-contain" />
+            </div>
+          )}
+          
+          {/* Mensaje para archivos HEIC */}
+          {isHeicFile && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <svg className="w-6 h-6 text-blue-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-blue-800 font-medium">📱 Archivo HEIC detectado</p>
+                  <p className="text-sm text-blue-600 mt-1">Selecciona el formato de destino y haz clic en "Convertir y Descargar"</p>
+                  <details className="mt-2">
+                    <summary className="text-xs text-blue-700 cursor-pointer hover:underline">¿Tu navegador no soporta HEIC?</summary>
+                    <div className="mt-2 text-xs text-blue-600 space-y-1">
+                      <p>• <strong>Windows/Android:</strong> Usa Chrome 116+ o Edge 116+</p>
+                      <p>• <strong>Mac/iOS:</strong> Usa Safari (soporta HEIC nativamente)</p>
+                      <p>• <strong>Alternativa:</strong> Convierte el archivo en línea primero en <a href="https://heic2jpg.com" target="_blank" rel="noopener" className="underline">heic2jpg.com</a></p>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Controles */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -232,8 +343,9 @@ export default function ImageConverter() {
                 <label className="block text-sm font-medium text-gray-700">Ancho (px)</label>
                 <input 
                   type="number" 
-                  value={width} 
+                  value={width || ''} 
                   onChange={(e) => setWidth(Number(e.target.value))}
+                  placeholder={isHeicFile ? "Original" : "Auto"}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
                 />
               </div>
@@ -241,8 +353,9 @@ export default function ImageConverter() {
                 <label className="block text-sm font-medium text-gray-700">Alto (px)</label>
                 <input 
                   type="number" 
-                  value={height} 
+                  value={height || ''} 
                   onChange={(e) => setHeight(Number(e.target.value))}
+                  placeholder={isHeicFile ? "Original" : "Auto"}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
                 />
               </div>
