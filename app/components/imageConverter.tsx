@@ -108,9 +108,12 @@ export default function ImageConverter() {
       >
         <input {...getInputProps()} />
         {selectedFile ? (
-          <p className="text-green-600 font-medium">Archivo cargado: {selectedFile.name}</p>
+          <p className="text-green-600 font-medium">✓ Archivo cargado: {selectedFile.name}</p>
         ) : (
-          <p className="text-gray-500">Arrastra una imagen aquí o haz clic para seleccionar</p>
+          <>
+            <p className="text-gray-700 font-medium">Arrastra una imagen aquí o haz clic para seleccionar</p>
+            <p className="text-sm text-gray-500 mt-2">Formatos soportados: JPEG, PNG, WebP, HEIC</p>
+          </>
         )}
       </div>
 
@@ -125,14 +128,15 @@ export default function ImageConverter() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700">Formato de Salida</label>
+              <p className="text-xs text-gray-500 mt-1 mb-2">Selecciona el formato para descargar</p>
               <select 
                 value={format} 
                 onChange={(e) => setFormat(e.target.value)}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
               >
-                <option value="image/jpeg">JPEG</option>
-                <option value="image/png">PNG</option>
-                <option value="image/webp">WebP</option>
+                <option value="image/jpeg">JPEG - Mejor compatibilidad, archivo más pequeño</option>
+                <option value="image/png">PNG - Mejor calidad, transparencia</option>
+                <option value="image/webp">WebP - Mejor compresión, Web moderno</option>
               </select>
             </div>
 
