@@ -301,8 +301,6 @@ export default function ImageConverter() {
           Nunca se suben a ningún servidor.{' '}
           <a 
             href="/privacidad" 
-           /*  target="_blank" */
-            rel="noopener noreferrer"
             className="underline hover:text-blue-900 font-medium"
           >
             Ver política de privacidad
