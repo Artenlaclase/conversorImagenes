@@ -294,6 +294,22 @@ export default function ImageConverter() {
         )}
       </div>
 
+      {/* Nota de privacidad */}
+      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <p className="text-xs text-blue-800 text-center">
+          🔒 <strong>100% Privado y Seguro:</strong> Tus imágenes se procesan localmente en tu navegador. 
+          Nunca se suben a ningún servidor.{' '}
+          <a 
+            href="/privacidad" 
+           /*  target="_blank" */
+            rel="noopener noreferrer"
+            className="underline hover:text-blue-900 font-medium"
+          >
+            Ver política de privacidad
+          </a>
+        </p>
+      </div>
+
       {selectedFile && (
         <div className="mt-6 space-y-4">
           {/* Previsualización - solo para archivos no-HEIC */}
