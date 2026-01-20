@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -27,7 +28,27 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <div className="fixed top-4 left-4 z-50">
+          <a
+            href="https://www.artenlaclase.cl"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Ir a www.artenlaclase.cl"
+          >
+            <Image
+              src="/logo1.png"
+              alt="Logo Artenlaclase"
+              width={160}
+              height={60}
+              className="opacity-90 hover:opacity-100 transition drop-shadow"
+              priority
+            />
+          </a>
+        </div>
         {children}
+        <footer className="mt-12 border-t py-6 text-center text-sm text-muted-foreground">
+          © {new Date().getFullYear()} <a href="https://www.oceanicaweb.cl" target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">www.oceanicaweb.cl</a>. Todos los derechos reservados.
+        </footer>
       </body>
     </html>
   );
