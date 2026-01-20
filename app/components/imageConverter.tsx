@@ -25,26 +25,80 @@ export default function ImageConverter() {
     setWidth(0);
     setHeight(0);
     setShowModal(false);
+    setError(null);
   };
 
   const onDrop = async (acceptedFiles: FileWithPath[]) => {
     let file = acceptedFiles[0];
+    setError(null);
     
     // Detectar si es HEIC
     if (file.name.toLowerCase().endsWith('.heic')) {
       try {
-        setIsProcessing(true); // Mostrar carga
+        setIsProcessing(true);
+        
         // Importar dinámicamente heic2any solo cuando sea necesario
-        const heic2any = (await import('heic2any')).default;
-        // Convertir HEIC a Blob (generalmente JPEG o PNG) legible por navegador
-        const convertedBlob = await heic2any({
+        const heic2anyModule = await import('heic2any');
+        const heic2any = heic2anyModule.default;
+        
+        if (!heic2any) {
+          throw new Error("La librería de conversión HEIC no está disponible en tu navegador");
+        }
+        
+        // Convertir HEIC a PNG para mantener calidad durante la previsualización
+        // El usuario elegirá el formato final después
+        const conversionResult = await heic2any({
           blob: file,
-          toType: "image/jpeg",
+          toType: "image/png"
         });
-        file = new File([convertedBlob as Blob], file.name.replace('.heic', '.jpg'), { type: "image/jpeg" });
+        
+        // Asegurar que obtenemos un blob
+        let convertedBlob: Blob | null = null;
+        
+        if (conversionResult instanceof Blob) {
+          convertedBlob = conversionResult;
+        } else if (Array.isArray(conversionResult) && conversionResult.length > 0 && conversionResult[0] instanceof Blob) {
+          convertedBlob = conversionResult[0];
+        }
+        
+        if (!convertedBlob) {
+          throw new Error("La conversión HEIC no produjo un resultado válido. Verifica que el archivo sea un HEIC válido");
+        }
+        
+        // Crear nuevo archivo con PNG temporalmente para previsualización
+        // El formato final se elegirá al descargar
+        file = new File([convertedBlob], file.name.replace(/\.heic$/i, '.png'), { 
+          type: "image/png",
+          lastModified: Date.now()
+        });
+        
         setIsProcessing(false);
-      } catch (e) {
-        console.error("Error convirtiendo HEIC", e);
+      } catch (e: any) {
+        let errorMessage = "Error desconocido al convertir HEIC";
+        
+        if (e instanceof Error) {
+          errorMessage = e.message;
+        } else if (typeof e === 'string') {
+          errorMessage = e;
+        } else if (e && typeof e === 'object' && e.message) {
+          errorMessage = e.message;
+        }
+        
+        // Diferenciación de errores más útil
+        let userMessage = "No se pudo convertir el archivo HEIC. ";
+        
+        if (errorMessage.includes("browser") || errorMessage.includes("supported") || errorMessage.includes("disponible")) {
+          userMessage += "Tu navegador no soporta conversión de HEIC. Intenta con Chrome, Firefox o Safari reciente.";
+        } else if (errorMessage.includes("valid") || errorMessage.includes("válido")) {
+          userMessage += "El archivo HEIC podría estar corrupto. Intenta con otro archivo.";
+        } else if (errorMessage.includes("User cancelled")) {
+          userMessage = "Conversión cancelada por el usuario.";
+        } else {
+          userMessage += "Intenta con otro formato (JPG, PNG, WebP).";
+        }
+        
+        console.warn("Problema con conversión HEIC:", errorMessage);
+        setError(userMessage);
         setIsProcessing(false);
         return;
       }
@@ -115,6 +169,24 @@ export default function ImageConverter() {
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white rounded-xl shadow-md border border-gray-200">
       <h2 className="text-2xl font-bold mb-4 text-gray-800">Conversor de Imágenes</h2>
+
+      {/* Mensaje de error */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <svg className="w-5 h-5 text-red-600 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+          <div className="flex-1">
+            <p className="text-sm text-red-800">{error}</p>
+            <button 
+              onClick={() => setError(null)} 
+              className="text-xs text-red-600 hover:text-red-800 underline mt-1"
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Área de Dropzone */}
       <div 
