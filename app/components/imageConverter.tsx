@@ -13,6 +13,7 @@ export default function ImageConverter() {
   const [height, setHeight] = useState<number>(0);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [showModal, setShowModal] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Referencia al canvas oculto para procesar la imagen
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -101,8 +102,10 @@ export default function ImageConverter() {
           // Generar nombre de archivo
           const extension = format.split('/')[1];
           saveAs(blob, `imagen-convertida.${extension}`);
-          // Mostrar modal después de descargar
-          setShowModal(true);
+          // Esperar a que se complete la descarga antes de mostrar el modal
+          setTimeout(() => {
+            setShowModal(true);
+          }, 1000);
         }
         setIsProcessing(false);
       }, format, 0.9); // 0.9 es la calidad (90%)
