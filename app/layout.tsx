@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import { Geist, Geist_Mono } from "next/font/google";
 // @ts-expect-error - CSS import
 import "./globals.css";
@@ -36,14 +35,11 @@ export default function RootLayout({
             rel="noopener noreferrer"
             aria-label="Ir a www.artenlaclase.cl"
           >
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src="/logo1.png"
               alt="Logo Artenlaclase"
-              width={160}
-              height={60}
-              className="opacity-90 hover:opacity-100 transition drop-shadow"
-              style={{ width: 'auto', height: 'auto', maxWidth: '160px' }}
-              priority
+              className="opacity-90 hover:opacity-100 transition drop-shadow w-40 h-auto"
             />
           </a>
         </div>
