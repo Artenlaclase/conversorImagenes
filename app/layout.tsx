@@ -42,6 +42,7 @@ export default function RootLayout({
               width={160}
               height={60}
               className="opacity-90 hover:opacity-100 transition drop-shadow"
+              style={{ width: 'auto', height: 'auto', maxWidth: '160px' }}
               priority
             />
           </a>
