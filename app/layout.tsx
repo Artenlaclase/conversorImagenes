@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
       >
         <div className="fixed top-4 left-4 z-50">
           <a
@@ -46,9 +46,11 @@ export default function RootLayout({
             />
           </a>
         </div>
-        {children}
-        <footer className="mt-12 border-t py-6 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} <a href="https://www.oceanicaweb.cl" target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">www.oceanicaweb.cl</a>. Todos los derechos reservados.
+        <div className="flex-1">
+          {children}
+        </div>
+        <footer className="bg-gray-50 border-t py-6 text-center text-sm text-gray-600">
+          © {new Date().getFullYear()} <a href="https://www.oceanicaweb.cl" target="_blank" rel="noopener noreferrer" className="text-gray-700 underline hover:no-underline">www.oceanicaweb.cl</a>. Todos los derechos reservados.
         </footer>
       </body>
     </html>
