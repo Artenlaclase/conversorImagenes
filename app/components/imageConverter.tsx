@@ -3,7 +3,6 @@
 import React, { useState, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { saveAs } from 'file-saver';
-import heic2any from 'heic2any';
 import type { FileWithPath } from 'react-dropzone';
 
 export default function ImageConverter() {
@@ -24,6 +23,8 @@ export default function ImageConverter() {
     if (file.name.toLowerCase().endsWith('.heic')) {
       try {
         setIsProcessing(true); // Mostrar carga
+        // Importar dinámicamente heic2any solo cuando sea necesario
+        const heic2any = (await import('heic2any')).default;
         // Convertir HEIC a Blob (generalmente JPEG o PNG) legible por navegador
         const convertedBlob = await heic2any({
           blob: file,
